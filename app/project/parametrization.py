@@ -2,8 +2,6 @@ from viktor.parametrization import Parametrization, Section, NumberField, Hidden
 
 
 class ProjectParametrization(Parametrization):
-    
-
     general = Section('Limits')
     general.left_border = NumberField('Border Left', name="left_border", suffix='m', default=0)
     general.right_border = NumberField('Border Right', name='right_border', suffix='m', default=0)    
@@ -11,11 +9,9 @@ class ProjectParametrization(Parametrization):
     
     settings = Section('Settings')  
     settings.num_results =  NumberField('Number of results', name="num_results", suffix='m', default=3)
-    settings.calculation_btn = ActionButton("Find normative", "on_btn_find_normative", longpoll=True)
-    
 
     output = Section('Output')
-    output.surfacelines_csv = DownloadButton("normative_surfacelines.csv", method="on_download_surfacelines_csv")
+    output.surfacelines_csv = DownloadButton("Output .csv", method="on_download_surfacelines_csv")
 
 
 

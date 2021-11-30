@@ -5,6 +5,7 @@ from .point3d import Point3D
 
 class Crosssection(BaseModel):
     id: str = ""
+    weight: int = 0
     points: List[Point3D] = []
 
     @classmethod

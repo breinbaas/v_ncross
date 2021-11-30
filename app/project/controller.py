@@ -7,6 +7,7 @@ from pathlib import Path
 from viktor.core import ViktorController, File, ParamsFromFile
 from viktor import UserException
 from viktor.views import SVGResult, SVGView
+from viktor.result import DownloadResult
 from .parametrization import ProjectParametrization
 from .models.crosssection import Crosssection
 
@@ -28,23 +29,44 @@ class ProjectController(ViktorController):
 
     @SVGView("SVG plot", duration_guess=3)
     def create_svg_result(self, params, **kwargs):
-        fig = plt.figure()
+        fig = plt.figure(figsize=(10,7))
         zmin = 1e9
         zmax = -1e9
 
-        for crs_json in params.crosssections:
-            crs = Crosssection.parse_raw(crs_json)
+        # generate crosssections
+        crosssections = self._get_crosssections_weighted(params)
+
+        # check if we have winners
+        has_normatives = max([crs.weight for crs in crosssections]) > 0
+
+        if has_normatives:
+            num_results = params.num_results
+        else:
+            num_results = 0
+
+        for crs in crosssections[num_results:]:          
             xs = [p.l for p in crs.points]
             zs = [p.z for p in crs.points]
             zmin = min(zmin, min(zs))
-            zmax = max(zmax, max(zs))
+            zmax = max(zmax, max(zs))            
             plt.plot(xs, zs, 'k:')
+
+        for crs in crosssections[:num_results]:
+            xs = [p.l for p in crs.points]
+            zs = [p.z for p in crs.points]
+            zmin = min(zmin, min(zs))
+            zmax = max(zmax, max(zs))            
+            plt.plot(xs, zs, label=f"{crs.id}")
+            
 
         xl = params.left_border
         xr = params.right_border
         
         plt.plot([xl, xl],[zmin, zmax], 'r--')
         plt.plot([xr, xr],[zmin, zmax], 'b--')
+        fig.suptitle("normative crosssections")
+        if has_normatives:
+            fig.legend(loc='upper left')
         plt.tight_layout()
         
 
@@ -55,6 +77,40 @@ class ProjectController(ViktorController):
 
         return SVGResult(svg_data)
 
+    # TODO > create download
+    def on_download_surfacelines_csv(self, params, **kwargs):
+        crosssections = self._get_crosssections_weighted(params)
+        has_normatives = max([crs.weight for crs in crosssections]) > 0
+
+        if has_normatives:
+            data = "LOCATIONID;X1;Y1;Z1;.....;Xn;Yn;Zn;(Profiel)\n"
+            for crs in crosssections[:params.num_results]:
+                data += f"{crs.to_surfaceline()}\n"
+            
+            return DownloadResult(data, 'normative_surfacelines.csv')
+
+
+
+    
+    def _get_crosssections_weighted(self, params, **kwargs):
+        crosssections = [Crosssection.parse_raw(crs_json) for crs_json in params.crosssections]
+
+        # only proceed with valid input
+        if params.left_border >= params.right_border:
+            return crosssections
+
+        # find zmin
+        zmin = 1e9
+        for crs in crosssections:
+            zmin = min(zmin, min([p.z for p in crs.points]))
+        
+        # calculate the weight
+        for crs in crosssections:
+            crs.weight = self._handle_crosssection(crs, zmin, params.right_border - params.left_border, params.left_border)
+       
+        # we're done, sort the result (lowest weights first) and return
+        return sorted(crosssections, key=lambda x:x.weight)    
+    
     def _handle_crosssection(
         self,
         crosssection: Crosssection,
@@ -82,57 +138,4 @@ class ProjectController(ViktorController):
 
         return result
 
-    def on_download_surfacelines_csv(self, params, **kwargs):
-        # csv_path = Path(__file__).parent / 'surfacelines' / 'normative_surfacelines.csv'
-        # surfacelines_csv = BytesIO()
-        # with open(csv_path, "rb") as esa_file:
-        #     surfacelines_csv.write(esa_file.read())
-        
-        # return scia_input_esa
-        pass
-        
     
-    def on_btn_find_normative(self, params, **kwargs):
-        selection_weighted = []
-        #fig = Figure(figsize=(15, 6))
-        #ax = fig.add_subplot()
-
-        #f = open(Path(output_path) / "surfacelines_normative.csv", "w")
-        #f.write("LOCATIONID;X1;Y1;Z1;.....;Xn;Yn;Zn;(Profiel)\n")
-
-        crosssections = [Crosssection.parse_raw(crs_json) for crs_json in params.crosssections]
-        
-        zmin = 1e9
-        for crs in crosssections:
-            zmin = min(zmin, min([p.z for p in crs.points]))
-
-        for crs_json in params.crosssections:
-            crs = Crosssection.parse_raw(crs_json)
-            weight = self._handle_crosssection(
-                crs, zmin, params.right_border - params.left_border, params.left_border
-            )
-            xs = [p.l for p in crs.points]
-            ys = [p.z for p in crs.points]
-        #    ax.plot(xs, ys, "k:")
-            selection_weighted.append((weight, crs))
-
-        # sort on weight
-        selection_weighted = sorted(selection_weighted, key=lambda x: x[0])
-
-        #print(selection_weighted[:params.num_results])
-
-        
-
-        # for _, crs in selection_weighted[params.num_results]:
-        #     xs = [p.l for p in crs.points]
-        #     ys = [p.z for p in crs.points]
-            #ax.plot(xs, ys, label=f"{crs.id}")
-            #f.write(f"{crs.to_surfaceline()}\n")
-        
-        #f.close()
-        #ax.set_title("normative crosssections")
-        #fig.legend()
-        #fig.savefig(Path(output_path) / f"normative_crosssections_result.png")
-
-        
-
