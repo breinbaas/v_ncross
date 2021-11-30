@@ -88,6 +88,8 @@ class ProjectController(ViktorController):
                 data += f"{crs.to_surfaceline()}\n"
             
             return DownloadResult(data, 'normative_surfacelines.csv')
+        else:
+            raise UserException("No normative crosssections found, check your input (border left < border right)")
 
 
 
@@ -96,7 +98,7 @@ class ProjectController(ViktorController):
         crosssections = [Crosssection.parse_raw(crs_json) for crs_json in params.crosssections]
 
         # only proceed with valid input
-        if params.left_border >= params.right_border:
+        if params.left_border >= params.right_border:            
             return crosssections
 
         # find zmin
